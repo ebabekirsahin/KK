@@ -33,6 +33,8 @@ periyodik çekip belirli bir metnin (örn. "Uygun randevu bulunmamaktadır")
 kaybolup kaybolmadığını kontrol edebiliriz (aşağıda HTML_MODE ile).
 """
 
+import os
+import sys
 import time
 import smtplib
 from email.mime.text import MIMEText
@@ -40,8 +42,8 @@ import requests
 
 # ============ AYARLAR (buraları kendinize göre doldurun) ============
 
-# Kontrol sıklığı (saniye). Not: 300'ün altına inmek siteyi daha sık yorar
-# ve bot tespiti/IP engeli riskini artırır; 120 sn makul bir orta nokta.
+# Yerelde (kendi bilgisayarınızda) çalıştırırken kullanılan bekleme süresi.
+# GitHub Actions'ta bu değer kullanılmaz — zamanlamayı workflow'daki cron yapar.
 CHECK_INTERVAL_SECONDS = 120
 
 # --- Yöntem 1: API isteğini biliyorsanız (önerilen) ---
@@ -66,12 +68,21 @@ PAGE_URL = "https://basvuru.kosmosvize.com.tr/appointmentform"
 NO_SLOT_TEXT = "Uygun randevu bulunmamaktadır"
 
 # --- Bildirim ayarları (e-posta ile) ---
+# ÖNEMLİ: Şifre artık kod içinde DEĞİL — ortam değişkenlerinden okunuyor.
+# GitHub Actions'ta bunlar "Secrets" olarak tanımlanır (repo Settings ->
+# Secrets and variables -> Actions -> "New repository secret"):
+#   SMTP_USER = kayra4kara8@gmail.com
+#   SMTP_PASS = <mjeojkggabzlmtdr>
+#   NOTIFY_TO = kayra4kara8@gmail.com
+# Yerelde çalıştırırken de terminalde şu şekilde ayarlayabilirsiniz:
+#   Windows (cmd):  set SMTP_PASS=xxxxxxxxxxxxxxxx
+#   Mac/Linux:      export SMTP_PASS=xxxxxxxxxxxxxxxx
 SEND_EMAIL = True
 SMTP_HOST = "smtp.gmail.com"
 SMTP_PORT = 587
-SMTP_USER = "kayra4kara8@gmail.com"  # gönderen hesap (aynı adres olabilir)
-SMTP_PASS = "mjeojkggabzlmtdr"  # Gmail "Uygulama Şifresi" ile değiştirin, normal şifre çalışmaz
-NOTIFY_TO = "kayra4kara8@gmail.com"
+SMTP_USER = os.environ.get("SMTP_USER", "kayra4kara8@gmail.com")
+SMTP_PASS = os.environ.get("SMTP_PASS", "")
+NOTIFY_TO = os.environ.get("NOTIFY_TO", "kayra4kara8@gmail.com")
 
 # ======================================================================
 
@@ -123,30 +134,38 @@ def check_via_html() -> bool:
     return NO_SLOT_TEXT not in resp.text
 
 
-def main() -> None:
+def run_single_check() -> None:
+    """Tek seferlik kontrol yapar ve çıkar. GitHub Actions bunu kullanır
+    (zamanlamayı workflow'daki cron ayarı yapar)."""
+    try:
+        if USE_API_MODE:
+            available = check_via_api()
+        elif HTML_MODE:
+            available = check_via_html()
+        else:
+            print("Lütfen USE_API_MODE veya HTML_MODE ayarlarından birini seçin.")
+            sys.exit(1)
+
+        if available:
+            notify("Randevu sayfasında müsaitlik olabilir! Hemen elle kontrol edin: " + PAGE_URL)
+        else:
+            print(f"[{time.strftime('%H:%M:%S')}] Müsaitlik yok.")
+
+    except Exception as e:
+        print(f"Kontrol sırasında hata: {e}")
+        sys.exit(1)
+
+
+def run_loop() -> None:
+    """Yerel bilgisayarda sürekli döngüyle çalıştırmak için."""
     print("İzleme başladı. Durdurmak için Ctrl+C.")
     while True:
-        try:
-            if USE_API_MODE:
-                available = check_via_api()
-            elif HTML_MODE:
-                available = check_via_html()
-            else:
-                print("Lütfen USE_API_MODE veya HTML_MODE ayarlarından birini seçin.")
-                return
-
-            if available:
-                notify("Randevu sayfasında müsaitlik olabilir! Hemen elle kontrol edin: " + PAGE_URL)
-                # İsterseniz bulunca döngüyü durdurmak için:
-                # break
-            else:
-                print(f"[{time.strftime('%H:%M:%S')}] Müsaitlik yok, tekrar denenecek.")
-
-        except Exception as e:
-            print(f"Kontrol sırasında hata: {e}")
-
+        run_single_check()
         time.sleep(CHECK_INTERVAL_SECONDS)
 
 
 if __name__ == "__main__":
-    main()
+    if "--once" in sys.argv:
+        run_single_check()
+    else:
+        run_loop()
