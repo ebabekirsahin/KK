@@ -27,4 +27,4 @@ jobs:
           SMTP_USER: ${{ secrets.SMTP_USER }}
           SMTP_PASS: ${{ secrets.SMTP_PASS }}
           NOTIFY_TO: ${{ secrets.NOTIFY_TO }}
-        run: python kosmos_musaitlik_izleyici.py --once
+        run: python app.py --once
