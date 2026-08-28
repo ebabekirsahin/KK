@@ -70,7 +70,7 @@ SEND_EMAIL = True
 SMTP_HOST = "smtp.gmail.com"
 SMTP_PORT = 587
 SMTP_USER = "kayra4kara8@gmail.com"  # gönderen hesap (aynı adres olabilir)
-SMTP_PASS = "uygulama_sifresi"  # Gmail "Uygulama Şifresi" ile değiştirin, normal şifre çalışmaz
+SMTP_PASS = "mjeo jkgg abzl mtdr"  # Gmail "Uygulama Şifresi" ile değiştirin, normal şifre çalışmaz
 NOTIFY_TO = "kayra4kara8@gmail.com"
 
 # ======================================================================
